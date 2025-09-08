@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "web_proxy.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "web_proxy.py"
+    }
+  ]
+}
