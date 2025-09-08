@@ -10,9 +10,14 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
+PROXY_BACKEND = {
+    "http": "http://127.0.0.1:6767",
+    "https": "http://127.0.0.1:6767"
+}
+
 # Launch Playwright once for better performance
 _playwright = sync_playwright().start()
-_browser = _playwright.chromium.launch(headless=True)
+_browser = _playwright.chromium.launch(headless=False, proxy={"server": "http://127.0.0.1:6767"})
 
 def fetch_with_playwright(url, timeout=15000):
     """Return rendered HTML from Playwright (string) or raise."""
@@ -160,7 +165,7 @@ def rewrite_html(base_url, html_text):
 
 @app.route("/", methods=["GET"])
 def index():
-    games_html_path = os.path.join(os.path.dirname(__file__), "games.html")
+    games_html_path = "C:\Users\Reid am\Desktop\BrowserProxy\games.html"
     with open(games_html_path, 'r', encoding='utf-8') as f:
         games_content = f.read()
 
@@ -225,7 +230,7 @@ def proxy():
         url = "http://" + url
 
     try:
-        head = requests.head(url, allow_redirects=True, timeout=6)
+        head = requests.head(url, allow_redirects=True, timeout=6, proxies=PROXY_BACKEND)
         content_type = head.headers.get("content-type", "")
     except Exception:
         head = None
@@ -245,7 +250,7 @@ def proxy():
     else:
         try:
             logging.info(f"[proxy] streaming {url}")
-            resp = requests.get(url, stream=True, timeout=20)
+            resp = requests.get(url, stream=True, timeout=20, proxies=PROXY_BACKEND)
             content_type_res = resp.headers.get("content-type", "application/octet-stream")
             return Response(resp.iter_content(chunk_size=8192), content_type=content_type_res)
         except Exception as e:
