@@ -165,7 +165,7 @@ def rewrite_html(base_url, html_text):
 
 @app.route("/", methods=["GET"])
 def index():
-    games_html_path = "C:\Users\Reid am\Desktop\BrowserProxy\games.html"
+    games_html_path = r"C:\Users\Reid am\Desktop\BrowserProxy\games.html"
     with open(games_html_path, 'r', encoding='utf-8') as f:
         games_content = f.read()
 
