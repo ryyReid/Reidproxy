@@ -26,8 +26,8 @@ Before you begin, ensure you have the following installed:
 
 1.  **Clone the repository** (or download the source code):
     ```bash
-    git clone <repository-url>
-    cd BrowserProxy
+    git clone <https://github.com/ryyReid/Reidproxy.git>
+    cd ReidProxy
     ```
 
 2.  **Install dependencies**:
