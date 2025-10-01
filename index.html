@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Reidproxy - The Unrestricted Web</title>
+  <title>Why Use Reidproxy?</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
 
@@ -148,8 +148,8 @@
     .feature h3 {
       margin-top: 0;
     }
-
-    .feature-btn, .buttons a {
+    
+    .buttons a {
       display: inline-block;
       margin-top: 10px;
       padding: 12px 30px;
@@ -163,17 +163,10 @@
       box-shadow: 0 0 0 transparent;
     }
 
-    .feature-btn:hover, .buttons a:hover {
+    .buttons a:hover {
       background: #17a34a;
       transform: scale(1.05);
       box-shadow: 0 0 15px #1db954;
-    }
-
-    .buttons {
-      text-align: center;
-      margin: 20px 0;
-      z-index: 1;
-      position: relative;
     }
 
     footer {
@@ -192,62 +185,38 @@
   <div class="logo">Reidproxy</div>
   <nav>
     <ul>
-      <li><a href="#features">🚀 Features</a></li>
-      <li><a href="#about">ℹ️ About</a></li>
-      <li><a href="https://github.com/your-repo/reidproxy">⬇️ Download</a></li>
+      <li><a href="/">🏠 Home</a></li>
     </ul>
   </nav>
 </header>
 
   <section class="hero">
-    <h2>Welcome to Reidproxy</h2>
-    <p>Your gateway to the unrestricted web.</p>
-    <div style="text-align:center;color:white;margin-top: 20px;z-index:1;">
-        <form id="proxy-form" style="display:inline-block;">
-            <input name="url" id="url-input" placeholder="Enter URL or search query" style="width:400px; padding:10px; border-radius:5px; border:1px solid #1db954; background:#333; color:#fff; font-size:16px;"/>
-            <button type="submit" style="padding:10px 20px; background:#1db954; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:16px;">Go</button>
-        </form>
-        <script>
-            document.getElementById('proxy-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const url = document.getElementById('url-input').value;
-                if (url) {
-                    let finalUrl = url;
-                    // Simple check if it's a URL or a search term
-                    if (!url.match(/^(http|https):\/\//) && url.includes('.')) {
-                        finalUrl = 'http://' + url;
-                    } else if (!url.match(/^(http|https):\/\//)) {
-                        finalUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-                    }
-                    window.location.href = `/proxy?url=${encodeURIComponent(finalUrl)}`;
-                }
-            });
-        </script>
-    </div>
+    <h2>Why Use Reidproxy?</h2>
+    <p>Unlock the full potential of the internet.</p>
   </section>
 
-  <section id="features" class="features">
+  <section class="features">
     <div class="feature">
-      <h3>Bypass Filters</h3>
-      <p>Access websites and content that might be blocked on your network.</p>
+      <h3>Bypass Censorship</h3>
+      <p>Access websites and information that might be blocked in your country or on your network.</p>
     </div>
     <div class="feature">
-      <h3>Privacy</h3>
-      <p>Hide your IP address and browse with more privacy.</p>
+      <h3>Protect Your Privacy</h3>
+      <p>Browse the web without revealing your real IP address to the sites you visit.</p>
     </div>
     <div class="feature">
       <h3>Access Geo-Restricted Content</h3>
-      <p>Unlock content that is only available in certain regions.</p>
+      <p>Watch videos, listen to music, and use services that are only available in certain parts of the world.</p>
     </div>
+    <div class="feature">
+        <h3>Simple to Use</h3>
+        <p>Just enter a URL and go. No complex setup or configuration required.</p>
+      </div>
   </section>
 
-  <section id="about" class="hero">
-    <h2>About Reidproxy</h2>
-    <p>Reidproxy is a powerful web proxy designed for speed, security, and freedom. <br>This project is open-source and built with Python and Flask.</p>
-    <div class="buttons">
-        <a href="https://github.com/your-repo/reidproxy">Learn More on GitHub</a>
-    </div>
-  </section>
+  <div class="hero buttons">
+    <a href="/">Get Started with Reidproxy</a>
+  </div>
 
   <footer>
     <p>&copy; 2025 Reid Apps. All rights reserved.</p>
