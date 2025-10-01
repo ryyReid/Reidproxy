@@ -1,24 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Reid | Web</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
-
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      padding: 0;
-      min-height: 100vh;
-      background: linear-gradient(to bottom, #1a1a1a, #333);
-      color: #fff;
+      font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
-      position: relative;
+      min-height: 100vh;
+      transition: background 0.3s, color 0.3s;
     }
 
+    /* --- Light Mode --- */
+    body.light {
+      background: #f8fff8;
+      color: #1b2e1b;
+    }
+    body.light header, body.light footer {
+      background: #e9f5e9;
+      border-color: #c8e6c9;
+      color: #2e7d32;
+    }
+    body.light #proxy-form {
+      border: 1px solid #a5d6a7;
+      background: #fff;
+      box-shadow: 0 1px 6px rgba(46,125,50,0.3);
+    }
+    body.light #url-input { color: #2e7d32; }
+    body.light #proxy-form button {
+      background: #2e7d32;
+      color: #fff;
+    }
+    body.light #proxy-form button:hover { background: #1b5e20; }
+
+    /* --- Dark Mode --- */
+    body.dark {
+      background: #111;
+      color: #e0ffe0;
+    }
+    body.dark header, body.dark footer {
+      background: #222;
+      border-color: #333;
+      color: #1db954;
+    }
+    body.dark #proxy-form {
+      border: 1px solid #1db954;
+      background: #222;
+      box-shadow: 0 0 10px rgba(29,185,84,0.5);
+    }
+    body.dark #url-input { color: #1db954; background:#222; }
+    body.dark #proxy-form button {
+      background: #1db954;
+      color: #fff;
+    }
+    body.dark #proxy-form button:hover { background: #17a34a; }
+
+    /* Shared layout */
+    header {
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid;
+    }
+    header nav ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      gap: 15px;
+    }
+    header nav ul li a {
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .toggle-btn {
+      background: none;
+      border: 1px solid currentColor;
+      border-radius: 20px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .hero {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40px 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .logo {
+      font-size: 64px;
+      font-weight: bold;
+      margin-bottom: 30px;
+    }
+
+    #proxy-form {
+      display: flex;
+      width: 100%;
+      max-width: 600px;
+      border-radius: 24px;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+    #url-input {
+      flex-grow: 1;
+      padding: 12px 16px;
+      border: none;
+      font-size: 16px;
+      outline: none;
+    }
+    #proxy-form button {
+      border: none;
+      padding: 0 20px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.3s;
+    }
+
+    footer {
+      text-align: center;
+      padding: 15px;
+      border-top: 1px solid;
+      font-size: 14px;
+    }
+
+    /* Stars (only visible in dark mode) */
     .stars {
       width: 100%;
       height: 100%;
@@ -26,10 +143,11 @@
       top: 0;
       left: 0;
       overflow: hidden;
-      z-index: 0;
       pointer-events: none;
+      z-index: 0;
+      display: none;
     }
-
+    body.dark .stars { display: block; }
     .star {
       position: absolute;
       background: #1db954;
@@ -38,204 +156,67 @@
       border-radius: 50%;
       animation: moveStar linear infinite, twinkle 2s infinite alternate;
     }
-
     @keyframes moveStar {
       0% { transform: translateY(0); }
       100% { transform: translateY(100vh); }
     }
-
     @keyframes twinkle {
       0% { opacity: 0.3; }
       100% { opacity: 1; }
     }
-
-    .logo, header h1 {
-      font-size: 48px;
-      font-weight: bold;
-      color: #1db954;
-      text-shadow: 0 0 10px #1db954, 0 0 20px #1db954, 0 0 30px #1db954;
-      animation: glowPulse 2s infinite alternate;
-      font-family: 'Orbitron', sans-serif;
-    }
-
-    @keyframes glowPulse {
-      0% {
-        text-shadow: 0 0 10px #1db954, 0 0 20px #1db954, 0 0 30px #1db954;
-        transform: scale(1);
-      }
-      100% {
-        text-shadow: 0 0 20px #1db954, 0 0 30px #1db954, 0 0 40px #1db954;
-        transform: scale(1.05);
-      }
-    }
-
-    header {
-      background: #444;
-      padding: 10px 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      z-index: 1;
-      position: relative;
-    }
-
-    nav ul {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: flex;
-    }
-
-    nav ul li {
-      margin: 0 10px;
-    }
-
-    nav ul li a {
-      color: #fff;
-      text-decoration: none;
-      padding: 5px 10px;
-      border-radius: 5px;
-      transition: background 0.3s;
-    }
-
-    nav ul li a:hover {
-      background: #3a5f3a;
-    }
-
-    .hero {
-      text-align: center;
-      padding: 50px 20px;
-      z-index: 1;
-      position: relative;
-    }
-
-    .hero h2 {
-      font-size: 36px;
-      margin: 0;
-    }
-
-    .hero p {
-      font-size: 18px;
-      margin: 10px 0;
-    }
-
-    .features {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      padding: 20px;
-      z-index: 1;
-      position: relative;
-      flex-grow: 1;
-    }
-
-    .feature {
-      background: #555;
-      margin: 10px;
-      padding: 20px;
-      border-radius: 10px;
-      flex: 1 1 300px;
-      max-width: 300px;
-      text-align: center;
-      border: 2px solid #1db954;
-      transition: background 0.3s;
-    }
-
-    .feature:hover {
-      background: #444;
-    }
-
-    .feature h3 {
-      margin-top: 0;
-    }
-
-    .feature-btn, .buttons a {
-      display: inline-block;
-      margin-top: 10px;
-      padding: 12px 30px;
-      font-size: 16px;
-      text-decoration: none;
-      color: #fff;
-      background: #1db954;
-      border: 2px solid #1db954;
-      border-radius: 50px;
-      transition: background 0.3s, transform 0.2s, box-shadow 0.3s;
-      box-shadow: 0 0 0 transparent;
-    }
-
-    .feature-btn:hover, .buttons a:hover {
-      background: #17a34a;
-      transform: scale(1.05);
-      box-shadow: 0 0 15px #1db954;
-    }
-
-    .buttons {
-      text-align: center;
-      margin: 20px 0;
-      z-index: 1;
-      position: relative;
-    }
-
-    footer {
-      background: #222;
-      text-align: center;
-      padding: 10px 20px;
-      z-index: 1;
-      position: relative;
-    }
   </style>
 </head>
-<body>
+<body class="dark">
   <div class="stars"></div>
 
-<header>
-  <div class="logo">Reid | Web</div>
-  <nav>
-    <ul>
-      <li><a href="../index.html">🏠 Home</a></li>
-      <li><a href="#games">🎮 Games</a></li>
-      <li><a href="#download">⬇️ Download</a></li>
-      <li><a href="#about">ℹ️ About</a></li>
-    </ul>
-  </nav>
-</header>
-
+  <header>
+    <nav>
+      <ul>
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="#games">Games</a></li>
+        <li><a href="#download">Download</a></li>
+        <li><a href="#about">About</a></li>
+      </ul>
+    </nav>
+    <button class="toggle-btn" id="theme-toggle">☀️ Light</button>
+  </header>
 
   <section class="hero">
-    <h2>Welcome to Reid | Web</h2>
-    <p>Your personal web proxy.</p>
-    <div style="text-align:center;color:white;margin-top: 20px;z-index:1;">
-        <form id="proxy-form" style="display:inline-block;">
-            <input name="url" id="url-input" placeholder="Enter URL or search query" style="width:400px; padding:10px; border-radius:5px; border:1px solid #1db954; background:#333; color:#fff; font-size:16px;"/>
-            <button type="submit" style="padding:10px 20px; background:#1db954; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:16px;">Go</button>
-        </form>
-        <script>
-            document.getElementById('proxy-form').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const url = document.getElementById('url-input').value;
-                if (url) {
-                    let finalUrl = url;
-                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                        finalUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-                    }
-                    window.location.href = `/proxy?url=${encodeURIComponent(finalUrl)}`;
-                }
-            });
-        </script>
-    </div>
+    <div class="logo">ReidWeb</div>
+    <form id="proxy-form">
+      <input name="url" id="url-input" placeholder="Search or type a URL"/>
+      <button type="submit">Go</button>
+    </form>
   </section>
-
-  <div class="buttons">
-    <a href="#">Get Started</a>
-    <a href="#">Learn More</a>
-    <a href="#">Contact Us</a>
-  </div>
 
   <footer>
     <p>&copy; 2025 Reid Apps. All rights reserved.</p>
   </footer>
 
   <script>
+    // Dark mode toggle
+    const toggleBtn = document.getElementById("theme-toggle");
+    toggleBtn.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      document.body.classList.toggle("light");
+      toggleBtn.textContent = 
+        document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark";
+    });
+
+    // Proxy form
+    document.getElementById('proxy-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const url = document.getElementById('url-input').value.trim();
+      if (url) {
+        let finalUrl = url;
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          finalUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+        }
+        window.location.href = `/proxy?url=${encodeURIComponent(finalUrl)}`;
+      }
+    });
+
+    // Stars generator
     const starsContainer = document.querySelector('.stars');
     const numStars = 100;
     for (let i = 0; i < numStars; i++) {
@@ -243,13 +224,13 @@
       star.classList.add('star');
       star.style.top = Math.random() * 100 + 'vh';
       star.style.left = Math.random() * 100 + 'vw';
-      star.style.animationDuration = (Math.random() * 5 + 5) + 's, ' + (Math.random() * 1 + 1.5) + 's';
-      star.style.animationDelay = Math.random() * 5 + 's, ' + Math.random() * 2 + 's';
+      star.style.animationDuration = (Math.random() * 5 + 5) + 's, ' 
+        + (Math.random() * 1 + 1.5) + 's';
+      star.style.animationDelay = Math.random() * 5 + 's, ' 
+        + Math.random() * 2 + 's';
       starsContainer.appendChild(star);
     }
   </script>
-  <script src="/storage/js/cloak.js"></script>
-  <script src="/storage/js/data.js"></script>
-  <script src="/storage/js/settings.js"></script>
 </body>
 </html>
+
