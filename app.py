@@ -5,11 +5,9 @@ import os
 from flask import Flask, request, Response, render_template_string
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, quote_plus, unquote_plus, urlparse
+from urllib.parse import urljoin, quote_plus, unquote_plus, urlparse, urlunparse
 import logging
 import re
-# import playwright.sync_api 
-# from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # --- TCP Proxy (from proxy.py) ---
 
@@ -149,12 +147,6 @@ PROXY_BACKEND = {
     "https": "http://127.0.0.1:6767"
 }
 
-# To enable Playwright, uncomment the following lines and install playwright
-# from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-# _playwright = sync_playwright().start()
-# _browser = _playwright.chromium.launch(headless=True, proxy={"server": "http://127.0.0.1:6767"})
-# _context = _browser.new_context()
-
 def fetch_with_requests(url, timeout=15):
     """Return HTML from Requests (string) or raise."""
     response = requests.get(url, timeout=timeout, proxies=PROXY_BACKEND)
@@ -168,6 +160,8 @@ def rewrite_html(base_url, html_text):
         if not raw_url:
             return raw_url
         raw_url = raw_url.strip()
+        if raw_url.startswith("/proxy?url="):
+            return raw_url
         if raw_url.startswith("#") or raw_url.startswith("mailto:") or raw_url.startswith("javascript:") or raw_url.startswith("data:"):
             return raw_url
         absolute = urljoin(current_base_url, raw_url)
@@ -193,98 +187,94 @@ def rewrite_html(base_url, html_text):
             parts.append(f"{newurl} {rest}".strip())
         tag['srcset'] = ", ".join(parts)
 
-    for tag in soup.find_all("form"): 
+    for tag in soup.find_all("form"):
         if tag.has_attr('action'):
             tag['action'] = proxify(tag['action'])
 
-    # Rewrite CSS url() in style tags
+    def css_url_replacer(match):
+        url = match.group(1).strip()
+        if (url.startswith("'") and url.endswith("'")) or \
+           (url.startswith('"') and url.endswith('"')):
+            url = url[1:-1]
+        
+        if url.startswith('data:'):
+            return f"url('{url}')"
+            
+        return f"url('{proxify(url)}')"
+
     for style_tag in soup.find_all("style"):
         if style_tag.string:
-            style_tag.string = re.sub(r"url\((['\"]?(.*?)[\'\"]?)\)", lambda match: f'url({proxify(match.group(1))})', style_tag.string)
+            style_tag.string = re.sub(r"url\((.*?)\)", css_url_replacer, style_tag.string)
 
-    # Rewrite inline style attributes
     for tag in soup.find_all(style=True):
-        tag['style'] = re.sub(r"url\((['\"]?(.*?)[\'\"]?)\)", lambda match: f'url({proxify(match.group(1))})', tag['style'])
+        tag['style'] = re.sub(r"url\((.*?)\)", css_url_replacer, tag['style'])
 
     for base in soup.find_all("base"):
         base.decompose()
 
-    # Inject a script to handle history and location changes
     injection_script = soup.new_tag("script")
-    injection_script.string = """
+    injection_script.string = '''
         (function() {
-            // Disable service worker registration
-            if ('serviceWorker' in navigator) {
-                Object.defineProperty(navigator, 'serviceWorker', {
-                    get: function() { return undefined; }
-                });
-            }
+            const base_url = \' ''' + base_url + '''';
 
             const proxify = (rawUrl) => {
-                if (!rawUrl) return rawUrl;
-                const absolute = new URL(rawUrl, '""" + base_url + """');
-                return `/proxy?url=${encodeURIComponent(absolute.href)}`;
+                if (!rawUrl || typeof rawUrl !== 'string' || rawUrl.startsWith('/proxy?url=')) return rawUrl;
+
+                let absoluteUrl;
+                try {
+                    absoluteUrl = new URL(rawUrl, base_url);
+                } catch (e) {
+                    return rawUrl;
+                }
+
+                if (absoluteUrl.origin === new URL(window.location.href).origin && absoluteUrl.pathname === window.location.pathname && absoluteUrl.hash) {
+                    return rawUrl;
+                }
+
+                return `/proxy?url=${encodeURIComponent(absoluteUrl.href)}`;
             };
 
-            const originalPushState = history.pushState;
-            history.pushState = function(state, title, url) {
-                if (url && typeof url === 'string') {
-                    originalPushState.apply(this, [state, title, proxify(url)]);
-                } else {
-                    originalPushState.apply(this, [state, title, url]);
+            const rewriteElement = (element) => {
+                if (element.hasAttribute('href') && !element.hasAttribute('data-proxified')) {
+                    element.href = proxify(element.getAttribute('href'));
+                    element.setAttribute('data-proxified', 'true');
+                }
+                if (element.hasAttribute('src') && !element.hasAttribute('data-proxified')) {
+                    element.src = proxify(element.getAttribute('src'));
+                    element.setAttribute('data-proxified', 'true');
+                }
+                if (element.hasAttribute('action') && !element.hasAttribute('data-proxified')) {
+                    element.action = proxify(element.getAttribute('action'));
+                    element.setAttribute('data-proxified', 'true');
                 }
             };
 
-            const originalReplaceState = history.replaceState;
-            history.replaceState = function(state, title, url) {
-                if (url && typeof url === 'string') {
-                    originalReplaceState.apply(this, [state, title, proxify(url)]);
-                } else {
-                    originalReplaceState.apply(this, [state, title, url]);
-                }
-            };
-
-            // Intercept direct window.location assignments
-            Object.defineProperty(window, 'location', {
-                get: function() { return originalLocation; },
-                set: function(newValue) {
-                    if (typeof newValue === 'string') {
-                        originalLocation.href = proxify(newValue);
-                    } else {
-                        originalLocation = newValue;
-                    }
-                }
-            });
-
-            // Intercept window.location.href assignments
-            const originalLocation = window.location;
-            Object.defineProperty(originalLocation, 'href', {
-                get: function() { return originalLocation.href; },
-                set: function(newValue) {
-                    originalLocation.href = proxify(newValue);
-                }
-            });
-
-            // Intercept form submissions that might not have an action attribute
-            document.querySelectorAll('form').forEach(form => {
-                form.addEventListener('submit', function(e) {
-                    // If the form doesn't have an action, it submits to the current URL
-                    if (!form.action) {
-                        e.preventDefault();
-                        const formData = new FormData(form);
-                        const params = new URLSearchParams();
-                        for (const pair of formData.entries()) {
-                            params.append(pair[0], pair[1]);
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            rewriteElement(node);
+                            node.querySelectorAll('[href], [src], [action]').forEach(rewriteElement);
                         }
-                        const currentUrl = new URL(window.location.href);
-                        currentUrl.search = params.toString();
-                        window.location.href = proxify(currentUrl.href);
-                    }
+                    });
                 });
             });
 
+            observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+            });
+
+            document.querySelectorAll('[href], [src], [action]').forEach(rewriteElement);
+
+            setInterval(() => {
+                document.querySelectorAll('[href]:not([data-proxified]), [src]:not([data-proxified]), [action]:not([data-proxified])').forEach(element => {
+                    rewriteElement(element);
+                });
+            }, 500);
+
         })();
-    """
+    '''
     if soup.head:
         soup.head.insert(0, injection_script)
     else:
@@ -300,46 +290,55 @@ def index():
 
     soup = BeautifulSoup(games_content, "html.parser")
 
-    def proxify_home_link(relative_path):
-        # Base URL for the home screen itself
-        base_url_for_home = "http://127.0.0.1:8080/"
-        # Construct the absolute URL relative to our Flask server's root
-        absolute_url = urljoin(base_url_for_home, relative_path)
-        # Then, wrap it in our proxy URL format
+    base_game_url = "https://ryyreid.github.io/Reidweb_v3vv/"
+
+    def proxify_all_links(link):
+        if not link:
+            return link
+        
+        link = link.strip()
+        if (link.startswith("'") and link.endswith("'")) or \
+           (link.startswith('"') and link.endswith('"')):
+            link = link[1:-1]
+
+        if link.startswith("#") or link.startswith("mailto:") or link.startswith("javascript:") or link.startswith("data:"):
+            return link
+        
+        absolute_url = urljoin(base_game_url, link)
+        
         return f"/proxy?url={quote_plus(absolute_url)}"
 
-    # For <a> tags
     for tag in soup.find_all("a", href=True):
-        # Only rewrite external links to go through the proxy
-        if tag['href'].startswith(('http://', 'https://')):
-            tag['href'] = proxify_home_link(tag['href'])
-        # For internal relative links, ensure they are absolute paths relative to our Flask server
-        elif not tag['href'].startswith(('/', '#')): # Not root-relative or fragment
-            tag['href'] = urljoin("/", tag['href']) # Make it root-relative
-        # Root-relative links like /storage/js/cloak.js are left as is
+        tag['href'] = proxify_all_links(tag['href'])
 
-    # For <script> tags with src
     for tag in soup.find_all("script", src=True):
-        if tag['src'].startswith(('http://', 'https://')):
-            tag['src'] = proxify_home_link(tag['src'])
-        elif not tag['src'].startswith('/'):
-            tag['src'] = urljoin("/", tag['src'])
+        tag['src'] = proxify_all_links(tag['src'])
 
-    # For <img> tags with src
     for tag in soup.find_all("img", src=True):
-        if tag['src'].startswith(('http://', 'https://')):
-            tag['src'] = proxify_home_link(tag['src'])
-        elif not tag['src'].startswith('/'):
-            tag['src'] = urljoin("/", tag['src'])
+        tag['src'] = proxify_all_links(tag['src'])
 
-    # For <link> tags (CSS) with href
     for tag in soup.find_all("link", href=True):
-        if tag['href'].startswith(('http://', 'https://')):
-            tag['href'] = proxify_home_link(tag['href'])
-        elif not tag['href'].startswith('/'):
-            tag['href'] = urljoin("/", tag['href'])
+        tag['href'] = proxify_all_links(tag['href'])
 
     return render_template_string(str(soup))
+
+def rewrite_text_based_content(base_url, content, proxify_func):
+    """
+    Generic function to rewrite URLs in text-based content (CSS, JS).
+    """
+    def repl(match):
+        url = match.group(1).strip()
+        if (url.startswith("'") and url.endswith("'")) or \
+           (url.startswith('"') and url.endswith('"')):
+            url = url[1:-1]
+        
+        if url.startswith('data:'):
+            return f"url('{url}')"
+            
+        return f"url('{proxify_func(url)}')"
+
+    content = re.sub(r"url\((.*?)\)", repl, content)
+    return content
 
 @app.route("/proxy", methods=["GET", "POST"])
 def proxy():
@@ -348,57 +347,72 @@ def proxy():
         url = request.form["url"]
     elif "url" in request.args:
         url = request.args.get("url")
-    elif "q" in request.args: # Handle Google search queries directly
+    elif "q" in request.args:
         search_query = request.args.get("q")
         url = f"https://www.google.com/search?q={quote_plus(search_query)}"
     else:
         return "No URL provided", 400
 
     url = unquote_plus(url) if "%" in url else url
+    
+    # Normalize the URL
+    url = url.replace('\\', '/')
+    
     if not urlparse(url).scheme:
         url = "http://" + url
 
     try:
-        head = requests.head(url, allow_redirects=True, timeout=6, proxies=PROXY_BACKEND)
-        content_type = head.headers.get("content-type", "")
-    except Exception:
-        head = None
-        content_type = ""
+        resp = requests.get(url, stream=True, timeout=20, proxies=PROXY_BACKEND, allow_redirects=True)
+        resp.raise_for_status()
+        content_type = resp.headers.get("content-type", "").lower()
+        
+        def proxify(raw_url, current_base_url=url):
+            if not raw_url:
+                return raw_url
+            raw_url = raw_url.strip()
+            if raw_url.startswith("#") or raw_url.startswith("mailto:") or raw_url.startswith("javascript:") or raw_url.startswith("data:"):
+                return raw_url
+            absolute = urljoin(current_base_url, raw_url)
+            return f'/proxy?url={quote_plus(absolute)}'
 
-    is_html = "text/html" in content_type
+        if "text/html" in content_type:
+            html_content = resp.content.decode('utf-8', errors='replace')
+            
+            # Get the directory of the URL
+            parsed_url = urlparse(url)
+            path_dir = os.path.dirname(parsed_url.path)
+            base_url = urlunparse((parsed_url.scheme, parsed_url.netloc, path_dir, '', '', ''))
 
-    if is_html:
-        try:
-            logging.info(f"[proxy] fetching (requests) {url}")
-            rendered = fetch_with_requests(url)
-            rewritten = rewrite_html(url, rendered)
-            return Response(rewritten, content_type="text/html; charset=utf-8")
-        except Exception as e:
-            logging.exception("Error rendering HTML")
-            return f"Error rendering: {e}", 500
-    else:
-        try:
-            logging.info(f"[proxy] streaming {url}")
-            resp = requests.get(url, stream=True, timeout=20, proxies=PROXY_BACKEND)
-            content_type_res = resp.headers.get("content-type", "application/octet-stream")
-            return Response(resp.iter_content(chunk_size=8192), content_type=content_type_res)
-        except Exception as e:
-            logging.exception("Error fetching resource")
-            return f"Error fetching resource: {e}", 500
+            rewritten_html = rewrite_html(base_url, html_content)
+            return Response(rewritten_html, content_type="text/html; charset=utf-8")
+
+        elif "text/css" in content_type or url.endswith(".glsl"):
+            text_content = resp.content.decode('utf-8', errors='replace')
+            rewritten_content = rewrite_text_based_content(url, text_content, proxify)
+            return Response(rewritten_content, content_type=content_type)
+            
+        elif "application/javascript" in content_type or "text/javascript" in content_type:
+            text_content = resp.content.decode('utf-8', errors='replace')
+            rewritten_content = rewrite_text_based_content(url, text_content, proxify)
+            return Response(rewritten_content, content_type=content_type)
+
+        else:
+            return Response(resp.iter_content(chunk_size=8192), content_type=content_type)
+
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching resource: {e}", 500
+    except Exception as e:
+        return f"An unexpected error occurred: {e}", 500
 
 if __name__ == "__main__":
     proxy_port = 6767
     app_port = 8080
 
-    # Start the TCP proxy in a background thread
     proxy_thread = threading.Thread(target=start_proxy_server, args=("127.0.0.1", proxy_port))
     proxy_thread.daemon = True
     proxy_thread.start()
 
-    # Start the Flask app
     try:
         app.run(host="127.0.0.1", port=app_port, threaded=True)
     finally:
-        # To enable Playwright, uncomment the following lines
-        # _playwright.stop()
         pass
