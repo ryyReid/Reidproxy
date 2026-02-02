@@ -2,4 +2,3 @@ requests
 flask
 beautifulsoup4
 gunicorn
-re
