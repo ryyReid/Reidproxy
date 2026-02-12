@@ -128,6 +128,14 @@
       transition: background 0.3s;
     }
 
+    .hint {
+      font-size: 0.9em;
+      opacity: 0.7;
+      margin-top: 8px;
+      max-width: 600px;
+      text-align: center;
+    }
+
     footer {
       text-align: center;
       padding: 15px;
@@ -187,10 +195,13 @@
       <input name="url" id="url-input" placeholder="Search or type a URL"/>
       <button type="submit">Go</button>
     </form>
+    <p class="hint">
+      Enter a URL or search term – e.g. youtube.com or "fun games"
+    </p>
   </section>
 
   <footer>
-    <p>&copy; 2025 Reid Apps. All rights reserved.</p>
+    <p>© 2025 Reid Apps. All rights reserved. | <a href="/debug" style="color: inherit;">Debug</a></p>
   </footer>
 
   <script>
@@ -203,17 +214,28 @@
         document.body.classList.contains("dark") ? "☀️ Light" : "🌙 Dark";
     });
 
-    // Proxy form
+    // Proxy form – using /p/ route
     document.getElementById('proxy-form').addEventListener('submit', function(e) {
       e.preventDefault();
-      const url = document.getElementById('url-input').value.trim();
-      if (url) {
-        let finalUrl = url;
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          finalUrl = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-        }
-        window.location.href = `/proxy?url=${encodeURIComponent(finalUrl)}`;
+      const input = document.getElementById('url-input').value.trim();
+      
+      if (!input) return;
+
+      let targetUrl = input;
+
+      // If it looks like a search query (no protocol + spaces / no dot / + sign)
+      if (!input.match(/^https?:\/\//i) && 
+          (input.includes(' ') || input.includes('+') || !input.includes('.'))) {
+        targetUrl = `https://www.google.com/search?q=${encodeURIComponent(input)}`;
+      } 
+      // Plain domain or path without protocol → prepend https://
+      else if (!input.match(/^https?:\/\//i)) {
+        targetUrl = 'https://' + input;
       }
+
+      // Go to new proxy route (Flask will handle the path safely)
+      const proxyUrl = `/p/${targetUrl}`;
+      window.location.href = proxyUrl;
     });
 
     // Stars generator
