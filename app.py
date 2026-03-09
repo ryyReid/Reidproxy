@@ -8,12 +8,6 @@ import logging
 import traceback
 from ipaddress import ip_address
 
-# Optional brotli (pip install brotli if you want it)
-try:
-    import brotli
-except ImportError:
-    brotli = None
-
 # ────────────────────────────────────────────────
 # Logging ─ very verbose for development
 # ────────────────────────────────────────────────
@@ -26,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config['PROPAGATE_EXCEPTIONS'] = True
+
+SUBRESOURCE_TIMEOUT_SECONDS = int(os.environ.get("SUBRESOURCE_TIMEOUT_SECONDS", "15"))
+UPSTREAM_TIMEOUT_SECONDS = int(os.environ.get("UPSTREAM_TIMEOUT_SECONDS", "25"))
 
 # ────────────────────────────────────────────────
 # SSRF / private network protection
@@ -42,13 +39,23 @@ def is_dangerous_url(url_str: str) -> bool:
     parsed = urlparse(url_str)
     host = (parsed.hostname or "").lower()
 
+    if not host:
+        return True
+
     for block in DENY_LIST_SUBSTRINGS:
         if block in host:
             return True
 
     try:
         ip = ip_address(host)
-        if ip.is_private or ip.is_loopback or ip.is_link_local:
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
             return True
     except ValueError:
         pass
@@ -104,11 +111,15 @@ def sub_resource_proxy(netloc, subpath):
     if is_dangerous_url(f"https://{netloc}"):
         return "Access to this domain blocked", 403
 
-    target_url = f"https://{netloc}/{subpath}"
-    if request.query_string:
-        target_url += "?" + request.query_string.decode()
+    def with_query(base_url: str) -> str:
+        if request.query_string:
+            return f"{base_url}?{request.query_string.decode()}"
+        return base_url
 
-    logger.info(f"Sub-resource: {request.url} → {target_url}")
+    https_target = with_query(f"https://{netloc}/{subpath}")
+    http_target = with_query(f"http://{netloc}/{subpath}")
+
+    logger.info(f"Sub-resource: {request.url} → {https_target}")
 
     try:
         headers = {
@@ -118,13 +129,23 @@ def sub_resource_proxy(netloc, subpath):
             "Accept-Encoding": "gzip, deflate, br",
         }
 
-        resp = requests.get(
-            target_url,
-            headers=headers,
-            timeout=15,
-            stream=True,
-            allow_redirects=True
-        )
+        try:
+            resp = requests.get(
+                https_target,
+                headers=headers,
+                timeout=SUBRESOURCE_TIMEOUT_SECONDS,
+                stream=True,
+                allow_redirects=True
+            )
+        except requests.RequestException:
+            logger.info(f"Sub-resource HTTPS failed, retrying over HTTP: {http_target}")
+            resp = requests.get(
+                http_target,
+                headers=headers,
+                timeout=SUBRESOURCE_TIMEOUT_SECONDS,
+                stream=True,
+                allow_redirects=True
+            )
         resp.raise_for_status()
 
         excluded = ["content-encoding", "content-length", "transfer-encoding", "connection"]
@@ -137,7 +158,7 @@ def sub_resource_proxy(netloc, subpath):
         return Response(generate(), status=resp.status_code, headers=out_headers)
 
     except Exception as e:
-        logger.error(f"Sub-resource failed {target_url}: {str(e)}")
+        logger.error(f"Sub-resource failed https://{netloc}/{subpath}: {str(e)}")
         if request.args.get("debug") == "1":
             return f"<pre>Sub-resource error:\n{traceback.format_exc()}</pre>", 502
         return "Failed to load resource", 502
@@ -173,7 +194,7 @@ def stealth_proxy(encoded_url):
         resp = requests.get(
             target_url,
             headers=headers,
-            timeout=25,
+            timeout=UPSTREAM_TIMEOUT_SECONDS,
             allow_redirects=True,
             stream=True
         )
@@ -276,4 +297,8 @@ if __name__ == "__main__":
     # app.run(host="0.0.0.0", port=8080, ssl_context=context, debug=True)
 
     # Plain HTTP (current default)
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(
+        host=os.environ.get("HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT", "8080")),
+        debug=os.environ.get("DEBUG", "true").lower() == "true",
+    )
