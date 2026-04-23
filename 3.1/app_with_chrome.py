@@ -492,11 +492,16 @@ def normalize_url(url):
     if not url:
         return url
     
+    url = url.strip()
+
     # Replace backslashes with forward slashes
     url = url.replace('\\', '/')
     
-    # Remove duplicate slashes (except after http:// or https://)
-    url = re.sub(r'(?<!:)//+', '/', url)
+    # Handle spaces
+    url = url.replace(' ', '%20')
+
+    # Remove duplicate slashes (except after protocol or at the beginning)
+    url = re.sub(r'(?<!:)(?<!^)//+', '/', url)
     
     return url
 
