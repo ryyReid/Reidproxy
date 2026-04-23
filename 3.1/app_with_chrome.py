@@ -15,7 +15,7 @@ from urllib.parse import urljoin, quote_plus, unquote_plus, urlparse, parse_qs
 import logging
 from functools import wraps
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 
 # Selenium imports for headless Chrome
 from selenium import webdriver
@@ -275,20 +275,22 @@ class RateLimiter:
     def __init__(self, max_requests=60, window=60):
         self.max_requests = max_requests
         self.window = window
-        self.requests = defaultdict(list)
+        self.requests = defaultdict(deque)
+        self.lock = threading.Lock()
     
     def is_allowed(self, identifier):
         now = time.time()
-        self.requests[identifier] = [
-            req_time for req_time in self.requests[identifier]
-            if now - req_time < self.window
-        ]
         
-        if len(self.requests[identifier]) >= self.max_requests:
-            return False
-        
-        self.requests[identifier].append(now)
-        return True
+        with self.lock:
+            # Remove expired requests from the left
+            while self.requests[identifier] and now - self.requests[identifier][0] >= self.window:
+                self.requests[identifier].popleft()
+
+            if len(self.requests[identifier]) >= self.max_requests:
+                return False
+
+            self.requests[identifier].append(now)
+            return True
 
 
 rate_limiter = RateLimiter(Config.RATE_LIMIT)
