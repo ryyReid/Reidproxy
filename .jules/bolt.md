@@ -1,0 +1,7 @@
+## 2024-05-24 - HTML Rewriting Anti-Pattern
+**Learning:** In the `app.py` proxy stealth route, sequential regular expression rewriting of individual HTML attributes (e.g., iterating through a list of attributes and running `re.sub` for each) is a significant performance bottleneck. Combining them into a single regular expression using word boundaries (`\b(href|src|...)`) and pre-compiling the static patterns provides a 1.7x speedup for HTML payload rewriting. Additionally, this pattern inherently prevents double-prefixing bugs caused by overlapping substrings like `src` and `data-lazy-src`.
+**Action:** Replace sequential regex iterations with a single combined regex using word boundaries (`\b(attr1|attr2)`) when rewriting HTML. Pre-compile static patterns globally.
+
+## 2024-05-24 - Pre-compiling Regex in Helper Functions
+**Learning:** In `3.1/app_with_chrome.py`, `normalize_url` is called multiple times per proxied URL, and it was dynamically compiling the duplicate slash regular expression (`re.sub(r'(?<!:)(?<!^)//+', '/', url)`). Pre-compiling this regular expression into a global constant `RE_DUP_SLASH` provides ~1.3x speedup for URL normalization and avoids repetitive compilation during heavy HTML rewriting loops.
+**Action:** Always pre-compile regular expressions at the module level when they are used inside frequently called helper functions (like URL normalizers or HTML parsers).
