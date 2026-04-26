@@ -63,6 +63,16 @@ def is_dangerous_url(url_str: str) -> bool:
     return False
 
 # ────────────────────────────────────────────────
+# Pre-compiled HTML rewriting Regexes (Performance)
+# ────────────────────────────────────────────────
+# ⚡ Bolt: Combined regex with word boundaries reduces 24 replacements per request down to 3,
+# and prevents double-prefixing overlapping attributes (like src inside data-lazy-src).
+REWRITE_ATTRS = r'\b(href|src|action|data-src|poster|data-background|data-lazy-src|data-poster)'
+RE_ROOT_RELATIVE = re.compile(rf'{REWRITE_ATTRS}=["\']/(?!/)', flags=re.IGNORECASE)
+RE_PROTOCOL_RELATIVE = re.compile(rf'{REWRITE_ATTRS}=["\']//', flags=re.IGNORECASE)
+RE_INLINE_STYLE = re.compile(r'url\(\s*["\']?/(?!/)', flags=re.IGNORECASE)
+
+# ────────────────────────────────────────────────
 # Debug endpoint
 # ────────────────────────────────────────────────
 @app.route("/debug")
@@ -211,29 +221,14 @@ def stealth_proxy(encoded_url):
                 proxy_prefix = f"/p/{netloc}"
 
                 # Rewrite root-relative, protocol-relative, same-domain absolute
-                for attr in ['href', 'src', 'action', 'data-src', 'poster', 'data-background', 'data-lazy-src', 'data-poster']:
-                    html = re.sub(
-                        rf'({attr})=["\']/(?!/)',
-                        rf'\1="{proxy_prefix}/',
-                        html, flags=re.IGNORECASE
-                    )
-                    html = re.sub(
-                        rf'({attr})=["\']//',
-                        rf'\1="{proxy_prefix}/',
-                        html, flags=re.IGNORECASE
-                    )
-                    html = re.sub(
-                        rf'({attr})=["\']https?://{re.escape(netloc)}',
-                        rf'\1="{proxy_prefix}',
-                        html, flags=re.IGNORECASE
-                    )
+                html = RE_ROOT_RELATIVE.sub(rf'\1="{proxy_prefix}/', html)
+                html = RE_PROTOCOL_RELATIVE.sub(rf'\1="{proxy_prefix}/', html)
+
+                RE_ABSOLUTE = re.compile(rf'{REWRITE_ATTRS}=["\']https?://{re.escape(netloc)}', flags=re.IGNORECASE)
+                html = RE_ABSOLUTE.sub(rf'\1="{proxy_prefix}', html)
 
                 # Basic inline style url(/path) → url(/p/netloc/path)
-                html = re.sub(
-                    r'url\(\s*["\']?/(?!/)',
-                    f'url({proxy_prefix}/',
-                    html, flags=re.IGNORECASE
-                )
+                html = RE_INLINE_STYLE.sub(f'url({proxy_prefix}/', html)
 
                 content = html.encode("utf-8")
             except Exception as e:
